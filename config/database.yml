@@ -1,0 +1,28 @@
+# PostgreSQL
+#
+# Ensure the PostgreSQL gem is defined in your Gemfile
+# gem 'pg'
+#
+# Install PostgreSQL and setup your database configuration accordingly
+
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  username: alcidesruiz
+  password: password
+  host: localhost
+  port: 5432
+  timezone: 'UTC'
+
+development:
+  <<: *default
+  database: birds_development
+
+test:
+  <<: *default
+  database: birds_test
+
+production:
+  <<: *default
+  database: birds_production
