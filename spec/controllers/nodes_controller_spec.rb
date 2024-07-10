@@ -10,10 +10,6 @@ RSpec.describe Api::NodesController, type: :controller do
     let!(:node_4430546) { Node.create(id: 4_430_546, parent_id: 125) }
     let!(:node_5497637) { Node.create(id: 5_497_637, parent_id: 4_430_546) }
 
-    before do
-      root_node.touch
-    end
-
     context 'when nodes have a common ancestor' do
       it 'returns the correct common ancestor information' do
         get :common_ancestors, params: { node_a_id: 5_497_637, node_b_id: 2_820_230 }

@@ -16,10 +16,6 @@ RSpec.describe Api::BirdsController, type: :controller do
     let!(:bird4) { Bird.create(id: 4, node_id: 5_497_637) }
     let!(:bird5) { Bird.create(id: 5, node_id: 130) }
 
-    before do
-      root_node.touch
-    end
-
     context 'when given node_ids contain nodes and their descendants' do
       it 'returns bird IDs associated with specified nodes and their descendants' do
         get :index, params: { node_ids: [125, 4_430_546] }

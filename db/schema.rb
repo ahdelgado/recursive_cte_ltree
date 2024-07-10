@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # This file is auto-generated from the current state of the database. Instead
 # of editing this file, please use the migrations feature of Active Record to
 # incrementally modify your database, and then regenerate this schema definition.
@@ -12,23 +10,24 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 20_240_513_185_950) do
+ActiveRecord::Schema[7.1].define(version: 2024_05_13_185950) do
   # These are extensions that must be enabled in order to support this database
-  enable_extension 'ltree'
-  enable_extension 'plpgsql'
+  enable_extension "ltree"
+  enable_extension "plpgsql"
 
-  create_table 'birds', force: :cascade do |t|
-    t.bigint 'node_id', null: false
-    t.datetime 'created_at', null: false
-    t.datetime 'updated_at', null: false
-    t.index ['node_id'], name: 'index_birds_on_node_id'
+  create_table "birds", force: :cascade do |t|
+    t.bigint "node_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["node_id"], name: "index_birds_on_node_id"
   end
 
-  create_table 'nodes', force: :cascade do |t|
-    t.integer 'parent_id', default: 0
-    t.ltree 'path'
-    t.index ['parent_id'], name: 'index_nodes_on_parent_id'
+  create_table "nodes", force: :cascade do |t|
+    t.integer "parent_id", default: 0
+    t.ltree "path"
+    t.index ["parent_id"], name: "index_nodes_on_parent_id"
+    t.index ["path"], name: "index_nodes_on_path", using: :gist
   end
 
-  add_foreign_key 'birds', 'nodes'
+  add_foreign_key "birds", "nodes"
 end
