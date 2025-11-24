@@ -1,69 +1,167 @@
-# Please see:
-* lib/tasks/update_ltree_path.rake
-* app/models/node.rb
-* app/models/bird.rb
-* app/controllers/api/nodes_controller.rb
-* app/controllers/api/birds_controller.rb
-* spec/controllers/nodes_controller_spec.rb
-* spec/controllers/birds_controller_spec.rb
-* spec/models/node_spec.rb
-* spec/models/bird_spec.rb
+# Hierarchical Tree API with PostgreSQL ltree
 
+A Ruby on Rails API demonstrating efficient tree traversal and lowest common ancestor (LCA) calculations using PostgreSQL's `ltree` extension and recursive Common Table Expressions (CTEs).
 
-## Problem Statement
-We have an adjacency list that creates a tree of nodes where a child's `parent_id` = a parent's `id`.
+## Overview
 
-Please make an API using PostgreSQL and Ruby on Rails
+This application provides a RESTful API for working with hierarchical tree data stored as an adjacency list. It leverages PostgreSQL's `ltree` data type to enable fast ancestor queries without expensive recursive lookups at query time.
+
+## Features
+
+- **Lowest Common Ancestor (LCA)** - Find the lowest common ancestor between any two nodes in O(1) database queries
+- **Hierarchical Path Tracking** - Automatic maintenance of materialized paths using `ltree`
+- **Descendant Queries** - Efficiently retrieve all entities belonging to a node or its descendants
+- **Bulk Path Updates** - Rake task for rebuilding ltree paths using recursive CTEs
+
+## Requirements
+
+- Ruby 3.1.0
+- Rails 7.1.x
+- PostgreSQL 12+ (with `ltree` extension)
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd recursive_cte_ltree
+   ```
+
+2. Install dependencies:
+   ```bash
+   bundle install
+   ```
+
+3. Set up the database:
+   ```bash
+   bin/rails db:create
+   bin/rails db:migrate
+   ```
+
+4. (Optional) Seed the database:
+   ```bash
+   bin/rails db:seed
+   ```
+
+5. If importing existing data, rebuild ltree paths:
+   ```bash
+   bin/rails nodes:update_ltree_path
+   ```
+
+## Database Schema
+
+### Nodes Table
+| Column    | Type    | Description                          |
+|-----------|---------|--------------------------------------|
+| id        | bigint  | Primary key                          |
+| parent_id | integer | Reference to parent node (0 or NULL for root) |
+| path      | ltree   | Materialized path from root to node  |
+
+### Birds Table
+| Column  | Type   | Description                |
+|---------|--------|----------------------------|
+| id      | bigint | Primary key                |
+| node_id | bigint | Foreign key to nodes table |
+
+## API Endpoints
 
 ### 1. Common Ancestor
-`/api/nodes/:node_a_id/common_ancestors/:node_b_id` - It should return the `root_id`, `lowest_common_ancestor_id`, and `depth` of tree of the lowest common ancestor that those two node ids share.
 
-For example, given the data for nodes:
 ```
-   id    | parent_id
----------+-----------
-     125 |       130
-     130 |          
- 2820230 |       125
- 4430546 |       125
- 5497637 |   4430546
+GET /api/nodes/:node_a_id/common_ancestors/:node_b_id
 ```
 
-`/api/nodes/5497637/common_ancestors/2820230` should return
-`{root_id: 130, lowest_common_ancestor: 125, depth: 2}`
+Returns the lowest common ancestor shared by two nodes.
 
-`/api/nodes/5497637/common_ancestors/130` should return
-`{root_id: 130, lowest_common_ancestor: 130, depth: 1}`
+**Response Fields:**
+- `root_id` - The root node of the tree containing both nodes
+- `lowest_common_ancestor` - The deepest node that is an ancestor of both input nodes
+- `depth` - The depth of the lowest common ancestor in the tree
 
-`/api/nodes/5497637/common_ancestors/4430546` should return
-`{root_id: 130, lowest_common_ancestor: 4430546, depth: 3}`
+**Example:**
 
-if there is no common node match, return nil for all fields
+Given the following tree structure:
+```
+130 (root)
+ └── 125
+      ├── 2820230
+      └── 4430546
+           └── 5497637
+```
 
-`/api/nodes/9/common_ancestors/4430546` should return
-`{root_id: nil, lowest_common_ancestor: nil, depth: nil}`
+| Request | Response |
+|---------|----------|
+| `GET /api/nodes/5497637/common_ancestors/2820230` | `{root_id: 130, lowest_common_ancestor: 125, depth: 2}` |
+| `GET /api/nodes/5497637/common_ancestors/130` | `{root_id: 130, lowest_common_ancestor: 130, depth: 1}` |
+| `GET /api/nodes/5497637/common_ancestors/4430546` | `{root_id: 130, lowest_common_ancestor: 4430546, depth: 3}` |
+| `GET /api/nodes/4430546/common_ancestors/4430546` | `{root_id: 130, lowest_common_ancestor: 4430546, depth: 3}` |
+| `GET /api/nodes/9/common_ancestors/4430546` | `{root_id: null, lowest_common_ancestor: null, depth: null}` |
 
-if a==b, it should return itself
+### 2. Birds by Nodes
 
-`/api/nodes/4430546/common_ancestors/4430546` should return
-`{root_id: 130, lowest_common_ancestor: 4430546, depth: 3}`
+```
+GET /api/birds?node_ids[]=1&node_ids[]=2
+```
 
-### 2. Birds
+Returns all bird IDs belonging to the specified nodes or any of their descendant nodes.
 
-Another endpoint `api/birds` - The second requirement for this project involves considering a second model, birds. Nodes have_many birds and birds belong_to nodes. Our second endpoint should take a list of `node_ids` and return the ids of the birds that belong to any of those nodes or any descendant nodes.
+**Parameters:**
+- `node_ids[]` - Array of node IDs to query
 
-## Common Ancestor Solution
-**API Endpoint:** This application exposes an API endpoint `/api/nodes/:node_a_id/common_ancestors/:node_b_id` to find the lowest common ancestor between two nodes. The endpoint accepts two parameters `node_a_id` and `node_b_id` and returns the lowest common ancestor along with its depth and root_id.
+**Response:**
+```json
+{
+  "bird_ids": [1, 2, 3, 5, 8]
+}
+```
 
-**Hierarchical Ltree Path Maintenance:**  The `Node` model maintains a path attribute of ltree data type. This path attribute is critical for fetching the lowest common ancestor for 2 particular nodes.
+## How It Works
 
-**Benefits**
-- Efficient LCA Calculation: Once the ltree column is maintained and updated properly, determining the LCA between two nodes becomes a fast and straightforward operation. This simplifies querying operations related to hierarchical structures. One only needs to fetch the `path` attribute of 2 nodes to see their hierarchy, including ancestors, descendants, and their LCA.
+### ltree Path Maintenance
 
-## Birds Solution
+Each node stores a `path` attribute representing the full path from the root to that node, formatted as dot-separated IDs (e.g., `130.125.4430546.5497637`).
 
-### Overview
-**API Endpoint:** This application exposes an API endpoint `/api/birds` that accepts an array of node_ids and returns the ids of the birds that belong to any of those nodes or any descendant nodes.
+**Automatic Updates:** The `Node` model includes a `before_save` callback that automatically computes and sets the path when a node is created or updated.
 
-### Named Scope: `birds_for_nodes`
-The `Bird` model defines a named scope `birds_for_nodes`, which retrieves bird IDs associated with specified nodes or their descendant nodes. This scope leverages the nodes ltree path attribute and is dependant upon the data integrity of this ltree hierarchy data.
+**Bulk Updates:** For existing data or after structural changes, use the rake task:
+```bash
+bin/rails nodes:update_ltree_path
+```
+
+This task uses a recursive CTE to traverse the entire tree and update all paths in a single efficient query.
+
+### LCA Algorithm
+
+The lowest common ancestor is computed by:
+1. Fetching the ltree paths for both nodes in a single query
+2. Splitting paths into arrays and comparing element by element
+3. The last matching element is the LCA
+
+This approach requires only **one database query** regardless of tree depth.
+
+### Descendant Queries
+
+The `Bird.birds_for_nodes` scope uses PostgreSQL's ltree pattern matching (`~` operator) to find all birds belonging to nodes matching the pattern `*.{node_id}.*`, which includes the node itself and all descendants.
+
+## Running Tests
+
+```bash
+bundle exec rspec
+```
+
+Key test files:
+- `spec/models/node_spec.rb` - Node model and LCA tests
+- `spec/models/bird_spec.rb` - Bird model and scope tests
+- `spec/controllers/nodes_controller_spec.rb` - Nodes API tests
+- `spec/controllers/birds_controller_spec.rb` - Birds API tests
+
+## Performance Considerations
+
+- **GiST Index:** The `path` column uses a GiST index for efficient ltree operations
+- **Single Query LCA:** Finding the LCA requires only one database query to fetch both paths
+- **Bulk Operations:** The recursive CTE in the rake task updates all paths in a single transaction
+- **Pattern Matching:** Descendant queries leverage PostgreSQL's optimized ltree pattern matching
+
+## License
+
+This project is available as open source under the terms of the MIT License.
